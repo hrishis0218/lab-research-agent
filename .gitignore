@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# API credentials
+*.key
+*.pem
+.streamlit/secrets.toml
+
+# Research documents and databases
+data/
+*.pdf
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.npy
+*.npz
+
+# Local models
+models/
+.cache/
+
+# Previous upgrades and backups
+backups/
+updates/
+
+# Temporary files
+*.log
+*.tmp
