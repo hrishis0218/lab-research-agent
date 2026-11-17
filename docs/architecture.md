@@ -34,6 +34,18 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 Visit http://127.0.0.1:8000/api/health. Streamlit remains available separately at port 8501.
 
+## Document audit and DOI enrichment (v1 development)
+
+The following tools are separate from the Streamlit PDF index and **do not modify any PDF or SQLite database**.
+
+1. `python -m scripts.audit_pdfs "C:\\Users\\petar\\Desktop\\all pdf papers" --output data/pdf_audit.csv`
+2. `python -m scripts.enrich_crossref --input data/pdf_audit.csv --output data/pdf_enriched.csv --limit 25`
+3. Review `data/pdf_enriched.csv` using Excel or pandas; `crossref_status` explains whether a DOI was missing, its title matched, a title mismatch needs investigation, or lookup failed.
+4. Run the enrichment command again with `--limit 100` to extend coverage. Successful responses are cached in `data/crossref_cache.json`; cached DOIs aren't requested again. The output CSV is regenerated from the original audit on each run.
+5. Optionally pass `--email your-address@example.com` for the Crossref polite pool. This sends only the DOI and an optional contact email to Crossref, not PDF content.
+
+Crossref gives authoritative metadata for *its own DOI records* but a DOI extracted from a PDF may belong to a bibliography item. **All results require review before any rename**; `title_match_review` is not an automatic approval. Proposed names are not executed, and collisions are not yet resolved.
+
 ## Next milestone
 
-Implement a read-only document metadata and duplicate audit, using file hashes and conservative metadata extraction. Write a CSV proposal; do not rename files or rewrite the existing index.
+Review the Crossref match statistics, improve ambiguous first-page title extraction, then design an explicit preview/confirm/rollback workflow for renaming without breaking the existing index.
