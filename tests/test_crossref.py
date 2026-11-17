@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.documents.crossref import enrich_csv, normalise_doi, title_score
+from backend.documents.crossref import enrich_csv, normalise_doi, title_score, possible_truncated_title
 
 
 def fake_lookup(doi: str, email: str = "") -> dict:
@@ -28,6 +28,16 @@ class CrossrefEnrichmentTests(unittest.TestCase):
         title = "Electric field induced changes in titanium dioxide films"
         self.assertGreaterEqual(title_score(title, title), 0.99)
         self.assertLess(title_score("Unrelated glass properties", title), 0.75)
+
+    def test_truncated_title_detection(self):
+        self.assertTrue(possible_truncated_title(
+            "Bleaching versus poling: Comparison of electric field",
+            "Bleaching versus poling: Comparison of electric field induced phenomena in glasses"
+        ))
+        self.assertFalse(possible_truncated_title(
+            "APPLIED PHYSICS REVIEWS—FOCUSED REVIEWS",
+            "Bleaching versus poling: Comparison of electric field induced phenomena"
+        ))
 
     def test_enrichment_cache_and_read_only_source(self):
         with tempfile.TemporaryDirectory() as tmp:
