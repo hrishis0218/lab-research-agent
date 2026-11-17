@@ -1,4 +1,5 @@
 import tempfile
+from contextlib import closing
 import unittest
 from pathlib import Path
 import sys
@@ -27,7 +28,7 @@ class RetrievalTests(unittest.TestCase):
             page.insert_text((72,72),"Electric field modifies anatase titanium dioxide thin films.")
             pdf.save(pdf_path)
             pdf.close()
-            with connect(root/"test.sqlite") as con:
+            with closing(connect(root/"test.sqlite")) as con:
                 first = index_semantic(str(root),con,with_embeddings=False)
                 self.assertEqual(first["indexed"],1)
                 self.assertEqual(index_semantic(str(root),con,False)["unchanged"],1)
@@ -51,7 +52,7 @@ class RetrievalTests(unittest.TestCase):
                 page = pdf.new_page()
                 page.insert_text((72,72),"Anatase modification with electric fields.")
                 pdf.save(root/"paper.pdf")
-            with connect(root/"test.sqlite") as con, patch("retrieval.embedding_model",return_value=Stub()):
+            with closing(connect(root/"test.sqlite")) as con, patch("retrieval.embedding_model",return_value=Stub()):
                 self.assertEqual(index_semantic(str(root),con,True)["indexed"],1)
                 found = retrieve("phase transition",con,semantic=True)
                 self.assertEqual(found[0]["citation"],"S1")
