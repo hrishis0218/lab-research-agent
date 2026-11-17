@@ -53,6 +53,26 @@ def title_score(a: str, b: str) -> float:
     return round(max(joined, shared), 3)
 
 
+def possible_truncated_title(extracted: str, authoritative: str) -> bool:
+    """Flag likely single-line title extraction without treating it as verified.
+
+    Require a substantial ordered prefix; generic headings and short matches
+    must not be mistaken for a paper title.
+    """
+    def tokens(value: str) -> list[str]:
+        normal = unicodedata.normalize("NFKD", value or "")
+        normal = "".join(ch for ch in normal if not unicodedata.combining(ch))
+        return re.findall(r"[a-z0-9]+", normal.lower())
+
+    left, right = tokens(extracted), tokens(authoritative)
+    return (
+        len(extracted.strip()) >= 30
+        and len(left) >= 6
+        and len(right) >= len(left) + 2
+        and left == right[:len(left)]
+    )
+
+
 def extract_year(item: dict) -> str:
     for field in ("published", "issued", "published-print", "published-online"):
         parts = (item.get(field) or {}).get("date-parts") or []
@@ -185,6 +205,8 @@ def enrich_csv(
             status = "review_no_crossref_title"
         elif similarity >= 0.75:
             status = "title_match_review"
+        elif possible_truncated_title(old_title, record["crossref_title"]):
+            status = "possible_truncated_title_review"
         else:
             status = "title_mismatch_review"
         row["crossref_status"] = status
