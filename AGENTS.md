@@ -14,7 +14,7 @@ Ship a cohesive, maintainable React + TypeScript frontend backed by FastAPI for 
 6. Summarise changes, screenshots (when available), automated test results, and remaining issues concisely after milestones. Prefer a reviewable PR.
 
 ## Protect the lab's data
-- Treat the real PDFs at `C:\Users\petar\Desktop\all pdf papers` as **read-only** unless the user explicitly approves a particular rename/move/delete operation.
+- Treat the real PDFs at `%USERPROFILE%\Desktop\all pdf papers` as **read-only** unless the user explicitly approves a particular rename/move/delete operation.
 - Existing PDF/embedding index is under `data/`; never clear/rebuild/overwrite it without a verified backup and explicit approval for data migration.
 - Keep PDFs, database files, local embedding caches, and API keys out of Git. GitHub repository visibility is public. Scan staged changes before commits.
 - Do not send unpublished/confidential research text to any external API without permission. Provider/model selection must visibly show cloud processing.
