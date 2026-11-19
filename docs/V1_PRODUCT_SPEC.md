@@ -8,9 +8,9 @@ The current working Streamlit Phase 2.4 app is a *reference implementation and f
 
 **Repository:** https://github.com/hrishis0218/lab-research-agent
 
-**Local repository:** `C:\Users\petar\Desktop\Lab Research agent\lab-research-agent`
+**Local repository:** `%USERPROFILE%\Desktop\Lab Research agent\lab-research-agent`
 
-**PDF collection:** `C:\Users\petar\Desktop\all pdf papers` (recursively scan subfolders).
+**PDF collection:** `%USERPROFILE%\Desktop\all pdf papers` (recursively scan subfolders).
 
 **Indexed database:** `data/library.sqlite3` or path configured by `core.py`; the database is not committed to Git. Do not assume this database exists in a cloud clone.
 
@@ -104,7 +104,7 @@ Within each milestone, implement multiple cohesive features, run tests, review U
 
 ## 5. Non-negotiable safeguards
 
-- NO modification, deletion, rename or relocation of `C:\Users\petar\Desktop\all pdf papers` without explicit per-operation approval.
+- NO modification, deletion, rename or relocation of `%USERPROFILE%\Desktop\all pdf papers` without explicit per-operation approval.
 - NO overwriting, deleting or silently migrating existing `data/library.sqlite3` or embeddings; use backup and migration tests.
 - NO committing PDFs, databases, API keys or private lab files to GitHub (repository is currently public).
 - NO unapproved outbound upload of unpublished/internal source text to any cloud LLM. Crossref requests should involve DOI metadata only.
