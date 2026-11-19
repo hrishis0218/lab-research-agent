@@ -49,3 +49,7 @@ Tests exercise indexing and retrieval without downloading a model or using OpenA
 ## Next
 
 Claim-level citation validation, OCR, figure/table extraction, Zotero metadata, scalable vector search, document permissions and lab deployment.
+
+## v1 React workspace (development)
+
+A new local React + TypeScript workspace is available on `codex/react-workspace`, backed by a read-only FastAPI adapter to the existing passage index. Run `.\scripts\dev.ps1` from PowerShell and open http://127.0.0.1:8000. See [development and demo instructions](docs/REACT_DEVELOPMENT.md) and the [milestone plan](docs/V1_IMPLEMENTATION_PLAN.md). Phase 2.4 Streamlit remains the fallback; v1 is not a complete release yet.

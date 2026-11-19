@@ -6,8 +6,8 @@ A local-first scientific literature workspace for PDF ingestion, verified docume
 
 ## Components
 
-- **Frontend (planned):** React with a collapsible library sidebar, central conversation, and contextual right-hand reference/PDF pane.
-- **Backend (initial):** FastAPI running on 127.0.0.1:8000; serves data to the future frontend. Only `/api/health` exists today.
+- **Frontend (M1):** React 19, TypeScript and Vite with independently collapsible navigation/reference panes, local keyword research, library browsing, evidence export, themes and a lazy-loaded PDF.js viewer.
+- **Backend (M1):** FastAPI on 127.0.0.1:8000 serves the production UI plus typed health, library statistics, document detail/PDF and keyword search endpoints. Library service connections use SQLite URI `mode=ro` and `query_only`; this avoids the legacy retrieval entry point that creates schema during searches.
 - **Documents (planned):** layout-aware PDF parsing; metadata and DOI identification; SHA-256 duplicate detection; proposed renames with preview, confirmation, journal, and rollback.
 - **Retrieval (existing):** retain `retrieval.py`, local SQLite FTS5, and BGE-small embeddings while evolving into independently tested services.
 - **Evidence (existing/proposed):** preserve `evidence.py`; build claim-to-source evidence tables with verified quotations and appropriate uncertainty.
@@ -46,6 +46,10 @@ The following tools are separate from the Streamlit PDF index and **do not modif
 
 Crossref gives authoritative metadata for *its own DOI records* but a DOI extracted from a PDF may belong to a bibliography item. **All results require review before any rename**; `title_match_review` is not an automatic approval. Proposed names are not executed, and collisions are not yet resolved.
 
-## Next milestone
+## React workspace delivery
+
+See [React development](REACT_DEVELOPMENT.md) for the Windows launcher, isolated demo and tests, and [implementation plan](V1_IMPLEMENTATION_PLAN.md) for current acceptance results. No migration has been applied to the existing index. Search uses near-identical passage suppression; document identity and exact-file duplicate groups remain M2 work.
+
+## Next document-intelligence milestone
 
 Review the Crossref match statistics, improve ambiguous first-page title extraction, then design an explicit preview/confirm/rollback workflow for renaming without breaking the existing index.
