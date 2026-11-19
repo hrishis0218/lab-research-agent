@@ -10,6 +10,7 @@ from answer import ask_openai
 from gemini_answer import ask_gemini
 from source_viewer import local_pdf_server, read_metadata
 from evidence import citation_audit, review_with_gemini
+from backend.credentials import get_key, save_key, delete_key
 
 st.set_page_config(page_title='Lab Research Agent', page_icon='🔬', layout='wide', initial_sidebar_state='collapsed')
 st.markdown('''<style>
@@ -25,13 +26,13 @@ for key, default in [('dialogue', []), ('selected_source', None), ('source_view'
 
 st.title('🔬 Lab Research Agent')
 st.caption('Phase 2.4 · Scientific evidence workspace')
-controls = st.columns([1, 1, 5])
+controls = st.columns([0.55, 5.4, 0.55])
 with controls[0]:
-    if st.button('☰ Settings' if not st.session_state.show_settings else '◀ Settings', use_container_width=True):
+    if st.button('☰' if not st.session_state.show_settings else '◀', help='Toggle library and settings', key='settings_toggle'):
         st.session_state.show_settings = not st.session_state.show_settings
         st.rerun()
-with controls[1]:
-    if st.button('Sources ▶' if st.session_state.show_source else 'Sources ☰', use_container_width=True):
+with controls[2]:
+    if st.button('▶' if not st.session_state.show_source else '✕', help='Toggle reference explorer', key='source_toggle'):
         st.session_state.show_source = not st.session_state.show_source
         st.rerun()
 
@@ -64,30 +65,71 @@ with connect() as db:
     if 'openai_api_key' not in st.session_state:
         st.session_state.openai_api_key = st.session_state.get('_saved_openai_api_key', '')
 
+    if 'source_count' not in st.session_state:
+        st.session_state.source_count = 8
+
     if settings_col is not None:
         with settings_col:
-            st.subheader('Settings')
+            st.subheader('Library & settings')
             a, b = st.columns(2)
             a.metric('PDFs', docs)
             b.metric('Passages', chunks)
             st.caption(f'Embeddings {embedded}/{chunks}')
             st.selectbox('Answer mode', ['Retrieval only', 'Gemini (free-tier eligible)', 'OpenAI (paid API)'], key='provider')
-            if st.session_state.provider == 'Gemini (free-tier eligible)':
-                st.text_input('Gemini API key', type='password', key='gemini_api_key')
-                st.text_input('Gemini model', key='gemini_model')
-            elif st.session_state.provider == 'OpenAI (paid API)':
-                st.text_input('OpenAI API key', type='password', key='openai_api_key')
-                st.text_input('OpenAI model', key='openai_model')
+            if st.session_state.provider in ('Gemini (free-tier eligible)', 'OpenAI (paid API)'):
+                credential_provider = 'Gemini' if st.session_state.provider.startswith('Gemini') else 'OpenAI'
+                try:
+                    stored = bool(get_key(credential_provider))
+                except RuntimeError as exc:
+                    stored = False
+                    st.warning(str(exc))
+                st.caption('API key stored in Windows Credential Manager' if stored else 'No saved key for this provider')
+                input_name = 'gemini_api_key' if credential_provider == 'Gemini' else 'openai_api_key'
+                st.text_input('New API key (optional)', type='password', key=input_name,
+                              help='Use Save key once; the value is never committed to Git.')
+                save_col, delete_col = st.columns(2)
+                with save_col:
+                    if st.button('Save key', key='save_' + credential_provider, use_container_width=True):
+                        try:
+                            save_key(credential_provider, st.session_state[input_name])
+                            st.success('Saved in Windows Credential Manager. You can clear the input field after the next page reload.')
+                        except (RuntimeError, ValueError) as exc:
+                            st.error(str(exc))
+                with delete_col:
+                    if st.button('Forget key', key='forget_' + credential_provider, use_container_width=True):
+                        try:
+                            delete_key(credential_provider)
+                            st.success('Stored key removed. Clear any key still entered in the input field.')
+                        except (RuntimeError, ValueError) as exc:
+                            st.error(str(exc))
+                if credential_provider == 'Gemini':
+                    st.text_input('Gemini model', key='gemini_model')
+                else:
+                    st.text_input('OpenAI model', key='openai_model')
             st.checkbox('Semantic search', key='semantic_search', disabled=not bool(embedded))
+            st.slider('Number of source passages', min_value=3, max_value=25,
+                      step=1, key='source_count', help='More passages can increase cloud API token usage.')
             with st.expander('Library indexing'):
-                folder = st.text_input('PDF folder', placeholder=r'C:\Research\Papers')
+                folder = st.text_input('PDF folder',
+                                       value=r'C:\Users\petar\Desktop\all pdf papers',
+                                       help='Audit reports do not index PDFs. Choose the complete library and index it here.')
+                if st.button('Count PDFs in selected folder', use_container_width=True):
+                    target = Path(folder).expanduser()
+                    if target.is_dir():
+                        disk_count = sum(1 for p in target.rglob('*') if p.is_file() and p.suffix.lower() == '.pdf')
+                        st.info(f'{disk_count} PDFs on disk; {docs} PDF paths currently in the search index.')
+                    else:
+                        st.warning('Folder does not exist on this computer.')
                 semantic_index = st.checkbox('Create embeddings for new PDFs', value=True)
                 if st.button('Index / update PDFs', type='primary', use_container_width=True):
                     try:
                         with st.spinner('Indexing local PDFs…'):
                             result = index_semantic(folder, db, semantic_index)
-                        st.success(f"Indexed {result['indexed']}, unchanged {result['unchanged']}")
-                        for error in result.get('errors', [])[:10]:
+                        fresh_count = db.execute('SELECT COUNT(*) FROM chunk_documents').fetchone()[0]
+                        st.success(f"Added/updated {result['indexed']} · unchanged {result['unchanged']} · total indexed {fresh_count}")
+                        if result.get('errors'):
+                            st.error(f"{len(result['errors'])} files had indexing errors. Review the warnings below.")
+                        for error in result.get('errors', [])[:30]:
                             st.warning(error)
                     except Exception as exc:
                         st.error(str(exc))
@@ -205,7 +247,7 @@ with connect() as db:
                             else:
                                 st.caption('No exact supporting quotation verified in retrieved excerpts.')
                     if st.button('Review claims against excerpts (Gemini)', key=f'review_{ti}'):
-                        key = st.session_state.gemini_api_key or os.environ.get('GEMINI_API_KEY', '')
+                        key = st.session_state.gemini_api_key or get_key('Gemini') or os.environ.get('GEMINI_API_KEY', '')
                         try:
                             with st.spinner('Assessing claims against retrieved passages…'):
                                 turn['review'] = review_with_gemini(turn['question'], turn['answer'], sources,
@@ -217,15 +259,15 @@ with connect() as db:
         if question:
             try:
                 with st.spinner('Retrieving source passages…'):
-                    sources = retrieve(question, db, limit=8, semantic=st.session_state.semantic_search and bool(embedded))
+                    sources = retrieve(question, db, limit=st.session_state.source_count, semantic=st.session_state.semantic_search and bool(embedded))
                 history = [('user', item['question']) for item in st.session_state.dialogue[-3:]]
                 provider = st.session_state.provider
                 if provider == 'Gemini (free-tier eligible)' and sources:
-                    key = st.session_state.gemini_api_key or os.environ.get('GEMINI_API_KEY', '')
+                    key = st.session_state.gemini_api_key or get_key('Gemini') or os.environ.get('GEMINI_API_KEY', '')
                     with st.spinner('Generating Gemini answer…'):
                         answer = ask_gemini(question, sources, key, st.session_state.gemini_model, history)
                 elif provider == 'OpenAI (paid API)' and sources:
-                    key = st.session_state.openai_api_key or os.environ.get('OPENAI_API_KEY', '')
+                    key = st.session_state.openai_api_key or get_key('OpenAI') or os.environ.get('OPENAI_API_KEY', '')
                     with st.spinner('Generating OpenAI answer…'):
                         answer = ask_openai(question, sources, key, st.session_state.openai_model, history)
                 else:
