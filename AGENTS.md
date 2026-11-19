@@ -29,7 +29,7 @@ Ship a cohesive, maintainable React + TypeScript frontend backed by FastAPI for 
 - An LLM checking its own citations is not independent verification. Ground every evidence label in page-level excerpts.
 - Support configurable retrieval limits, de-duplicated sources, per-provider API/model selection and persistence, saved conversations and document metadata preview.
 
-## First delegated task
-Create `docs/V1_IMPLEMENTATION_PLAN.md`; implement **M0 + M1** in `docs/V1_PRODUCT_SPEC.md`: safely scaffold React/Vite/TypeScript and FastAPI endpoints, connect them to a working browser UI with a library/sidebar, conversation region and contextual PDF pane; use fixtures if local PDFs unavailable. Include working launch/test scripts. Keep the existing Streamlit version and database untouched. Continue through testing and UI inspection before requesting milestone review.
+## Delegated development objective
+Deliver the complete v1 workspace described in `docs/V1_PRODUCT_SPEC.md` through **cohesive, testable milestones**. Start by creating `docs/V1_IMPLEMENTATION_PLAN.md`, then implement M0 and M1 (React/Vite/TypeScript shell + FastAPI API + real PDF pane); after validating those, proceed with M2–M5 as time/resources/access permit without requiring a new user prompt for each ordinary change. Run and visually inspect the browser UI; keep old Streamlit and the existing database untouched. Do not report the overall v1 complete until the acceptance criteria pass. At major checkpoints, report functionality, tests, problems and approvals needed.
 
 Ask before destructive Git operations, PDF renames, data migration or enabling paid/cloud processing. For routine coding and test fixes, proceed independently.
