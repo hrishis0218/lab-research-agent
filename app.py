@@ -92,16 +92,14 @@ with connect() as db:
                     if st.button('Save key', key='save_' + credential_provider, use_container_width=True):
                         try:
                             save_key(credential_provider, st.session_state[input_name])
-                            st.session_state[input_name] = ''
-                            st.success('Saved in Windows Credential Manager.')
+                            st.success('Saved in Windows Credential Manager. You can clear the input field after the next page reload.')
                         except (RuntimeError, ValueError) as exc:
                             st.error(str(exc))
                 with delete_col:
                     if st.button('Forget key', key='forget_' + credential_provider, use_container_width=True):
                         try:
                             delete_key(credential_provider)
-                            st.session_state[input_name] = ''
-                            st.success('Saved key removed.')
+                            st.success('Stored key removed. Clear any key still entered in the input field.')
                         except (RuntimeError, ValueError) as exc:
                             st.error(str(exc))
                 if credential_provider == 'Gemini':
