@@ -19,6 +19,12 @@ import {
   Download,
 } from "lucide-react";
 import "./style.css";
+import {
+  AISettings,
+  OrganisationHistory,
+  send,
+  type AIConfig,
+} from "./AISettings";
 const Pdf = lazy(() => import("./Pdf"));
 type Document = {
   id: number;
@@ -27,6 +33,8 @@ type Document = {
   pages: number;
   passages: number;
   available: boolean;
+  processing_state?: string;
+  attachments?: { filename: string; available: boolean }[];
 };
 type Source = {
   source_id: number;
@@ -35,6 +43,13 @@ type Source = {
   page: number;
   excerpt: string;
   citation: string;
+  bibliography?: {
+    authors?: string;
+    year?: string | number;
+    journal?: string;
+    doi?: string;
+    text_origin?: string;
+  };
 };
 type Detail = Document & {
   page: number;
@@ -42,6 +57,14 @@ type Detail = Document & {
   authors: string | null;
   abstract: string | null;
   metadata_provenance: string;
+  bibliography?: {
+    year?: string;
+    journal?: string;
+    doi?: string;
+    categories?: string[];
+    text_origin?: string;
+    extraction_warning?: string;
+  };
 };
 type Stats = {
   on_disk: number;
@@ -49,10 +72,16 @@ type Stats = {
   unindexed: number;
   passages: number;
   missing: number;
+  duplicate_copies?: number;
   database_available: boolean;
   folder_available: boolean;
 };
-type Turn = { question: string; sources: Source[] };
+type Turn = {
+  question: string;
+  sources: Source[];
+  answer?: string;
+  notice?: string;
+};
 async function api<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
   if (!response.ok)
@@ -61,14 +90,75 @@ async function api<T>(url: string, signal?: AbortSignal): Promise<T> {
     );
   return response.json();
 }
-function Readiness({advanced=false}: {advanced?:boolean}) {
-  const [status,setStatus]=useState<{states:Record<string,number>; semantic_available:boolean; failures:unknown[]; scan_error?:string}>();
-  useEffect(()=>{ let alive=true; const refresh=()=>api<typeof status>("/api/library/readiness").then(s=>{if(alive)setStatus(s)}).catch(()=>{}); void refresh(); const timer=setInterval(refresh,10000); return ()=>{alive=false;clearInterval(timer)} },[]);
-  if(!status)return <p className="muted">Connecting to Smart Library…</p>;
-  const active=(status.states.pending||0)+(status.states.running||0)+(status.states.retry||0);
-  return <div className="muted" role="status">{status.scan_error ? "Library folder temporarily unavailable" : active ? `Smart Library · preparing ${active} documents in the background` : "Smart Library · ready for questions"}{!!status.failures?.length && <span> · {status.failures.length} documents need attention; other sources remain searchable</span>}{advanced && <pre style={{whiteSpace:"pre-wrap"}}>{JSON.stringify(status,null,2)}</pre>}</div>;
+function Readiness({ advanced = false }: { advanced?: boolean }) {
+  const [status, setStatus] = useState<{
+    states: Record<string, number>;
+    semantic_available: boolean;
+    metadata_preparing?: number;
+    metadata_attention?: number;
+    failures: unknown[];
+    scan_error?: string;
+  }>();
+  useEffect(() => {
+    let alive = true;
+    const refresh = () =>
+      api<typeof status>("/api/library/readiness")
+        .then((s) => {
+          if (alive) setStatus(s);
+        })
+        .catch(() => {});
+    void refresh();
+    const timer = setInterval(refresh, 10000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+  if (!status) return <p className="muted">Connecting to Smart Library…</p>;
+  const active =
+    (status.states.pending || 0) +
+    (status.states.running || 0) +
+    (status.metadata_preparing || 0);
+  return (
+    <div className="muted" role="status">
+      {status.scan_error
+        ? "Library folder temporarily unavailable"
+        : active
+          ? `Smart Library · preparing ${active} documents in the background`
+          : "Smart Library · ready for questions"}
+      {!!status.failures?.length && (
+        <span>
+          {" "}
+          · {status.failures.length} documents need attention; other sources
+          remain searchable
+        </span>
+      )}
+      {advanced && (
+        <pre style={{ whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(status, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
 }
 function App() {
+  const [ai, setAI] = useState<AIConfig>({
+    enabled: false,
+    consent: false,
+    provider: "Gemini",
+    model: "",
+    credentials: {},
+    cost: "Unknown",
+  });
+  useEffect(() => {
+    api<AIConfig>("/api/ai/settings")
+      .then(setAI)
+      .catch(() => {});
+    api<Turn[]>("/api/history")
+      .then(setTurns)
+      .catch(() => {});
+  }, []);
+
   const [left, setLeft] = useState(true);
   const [right, setRight] = useState(true);
   const [theme, setTheme] = useState(
@@ -111,9 +201,19 @@ function App() {
     return () => abort.abort();
   }, []);
   useEffect(() => {
-    const timer=setInterval(()=>{ Promise.all([api<Stats>("/api/library/stats"),api<Document[]>("/api/documents")]).then(([s,d])=>{setStats(s);setDocs(d)}).catch(()=>{}); },10000);
-    return ()=>clearInterval(timer);
-  },[]);
+    const timer = setInterval(() => {
+      Promise.all([
+        api<Stats>("/api/library/stats"),
+        api<Document[]>("/api/documents"),
+      ])
+        .then(([s, d]) => {
+          setStats(s);
+          setDocs(d);
+        })
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!selected) return;
     const abort = new AbortController();
@@ -134,16 +234,35 @@ function App() {
     setSelected({ id, page, excerpt });
     setRight(true);
   }
+  async function importFiles(files: FileList | null) {
+    if (!files) return;
+    setError("");
+    for (const file of Array.from(files)) {
+      try {
+        const response = await fetch(
+          "/api/library/import?name=" + encodeURIComponent(file.name),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/pdf" },
+            body: file,
+          },
+        );
+        const data = await response.json();
+        if (!response.ok) throw Error(data.detail);
+      } catch (e) {
+        setError((e as Error).message);
+        break;
+      }
+    }
+  }
   async function search(value = question) {
     if (!value.trim() || busy) return;
     setBusy(true);
     setError("");
     setView("Research");
     try {
-      const result = await api<{ sources: Source[] }>(
-        `/api/search?q=${encodeURIComponent(value)}&limit=${limit}`,
-      );
-      setTurns((t) => [...t, { question: value, sources: result.sources }]);
+      const result = await send<Turn>("/api/ask", { question: value, limit });
+      setTurns((t) => [...t, { ...result, question: value }]);
       setQuestion("");
     } catch (e) {
       setError((e as Error).message);
@@ -153,15 +272,34 @@ function App() {
   }
   function exportEvidence() {
     const rows = [
-      ["Question", "Citation", "Paper", "Page", "Exact excerpt", "Assessment"],
+      [
+        "Question",
+        "Citation",
+        "Paper",
+        "Authors",
+        "Year",
+        "Journal",
+        "DOI",
+        "Page",
+        "Exact excerpt",
+        "Extraction",
+        "Assessment",
+        "PDF link",
+      ],
       ...turns.flatMap((t) =>
         t.sources.map((s) => [
           t.question,
           s.citation,
           s.title,
+          s.bibliography?.authors || "Unavailable",
+          String(s.bibliography?.year || "Unavailable"),
+          s.bibliography?.journal || "Unavailable",
+          s.bibliography?.doi || "Unavailable",
           String(s.page),
           s.excerpt,
+          s.bibliography?.text_origin || "pdf_text",
           "Retrieved; entailment not assessed",
+          `${location.origin}/api/documents/${s.document_id}/pdf#page=${s.page}`,
         ]),
       ),
     ];
@@ -252,7 +390,7 @@ function App() {
             ) : (
               <p>Your next question starts here.</p>
             )}
-            <p>Session history is temporary in this milestone.</p>
+            <p>Research history is saved locally.</p>
           </div>
         )}
         <div className="rail-bottom">
@@ -297,14 +435,16 @@ function App() {
           </button>
         </div>
       </aside>
-      <main><Readiness/>
+      <main>
+        <Readiness />
         <header>
           <div className="breadcrumb">
             Workspace <span>/</span> <strong>{view}</strong>
           </div>
           <div className="header-actions">
             <span className="local">
-              <i /> Local only
+              <i />{" "}
+              {ai.enabled ? `Cloud AI · ${ai.provider}` : "Local retrieval"}
             </span>
             <button
               aria-label="Toggle theme"
@@ -389,6 +529,37 @@ function App() {
                     <article className="turn" key={i}>
                       <div className="eyebrow">RESEARCH QUESTION {i + 1}</div>
                       <h2>{turn.question}</h2>
+                      {turn.answer && (
+                        <div className="answer">
+                          <p className="muted">
+                            AI interpretation · {turn.notice}
+                          </p>
+                          {turn.answer
+                            .split(/(\[S\d+\])/g)
+                            .map((part, index) => {
+                              const source = turn.sources.find(
+                                (s) => `[${s.citation}]` === part,
+                              );
+                              return source ? (
+                                <button
+                                  key={index}
+                                  className="citation"
+                                  onClick={() =>
+                                    open(
+                                      source.document_id,
+                                      source.page,
+                                      source.excerpt,
+                                    )
+                                  }
+                                >
+                                  {part}
+                                </button>
+                              ) : (
+                                <span key={index}>{part}</span>
+                              );
+                            })}
+                        </div>
+                      )}
                       <div className="result-heading">
                         <FlaskConical size={19} />
                         <strong>Evidence from your library</strong>
@@ -444,15 +615,44 @@ function App() {
             <section className="page">
               <div className="eyebrow">YOUR LOCAL COLLECTION</div>
               <h1>Literature library</h1>
+              <div
+                className="drop-zone"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  void importFiles(e.dataTransfer.files);
+                }}
+              >
+                <strong>Drop PDFs here</strong>
+                <span>
+                  {" "}
+                  or add files to your configured library folder. Everything
+                  else happens automatically.
+                </span>
+                <label className="primary">
+                  Add PDFs
+                  <input
+                    aria-label="Import PDFs"
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    multiple
+                    onChange={(e) => {
+                      void importFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <p className="intro">
-                Browse the existing index. Original PDFs remain untouched.
+                Add PDFs to your library. Identification, organisation and
+                search preparation happen automatically.
               </p>
               <div className="stat-grid">
                 {[
                   ["On disk", stats?.on_disk],
-                  ["Indexed", stats?.indexed],
-                  ["Unindexed on disk", stats?.unindexed],
-                  ["Missing indexed paths", stats?.missing],
+                  ["Searchable papers", stats?.indexed],
+                  ["Awaiting readable text", stats?.unindexed],
+                  ["Duplicate copies", stats?.duplicate_copies],
                 ].map(([l, n]) => (
                   <div key={l}>
                     <strong>{n ?? "—"}</strong>
@@ -461,7 +661,8 @@ function App() {
                 ))}
               </div>
               <p className="muted">
-                Smart Library detects exact copies and prepares new PDFs automatically.
+                Smart Library detects exact copies and prepares new PDFs
+                automatically.
               </p>
               <label className="library-search">
                 <Search size={17} />
@@ -473,8 +674,7 @@ function App() {
                 />
               </label>
               <div className="list-label">
-                {filtered.length} INDEXED DOCUMENTS{" "}
-                <span>Title / extracted pages</span>
+                {filtered.length} PAPERS <span>Title / extracted pages</span>
               </div>
               {filtered.map((d) => (
                 <button
@@ -487,11 +687,23 @@ function App() {
                   </span>
                   <div>
                     <strong>{d.title}</strong>
-                    <small>{d.filename}</small>
+                    <small>
+                      {d.filename}{" "}
+                      {d.attachments &&
+                      d.attachments.filter((a) => a.available).length > 1
+                        ? ` · ${d.attachments.filter((a) => a.available).length} attachments`
+                        : ""}
+                    </small>
                   </div>
                   <span>{d.pages} pp.</span>
                   <span className={d.available ? "tag" : "tag warning"}>
-                    {d.available ? "Indexed" : "PDF missing"}
+                    {!d.available
+                      ? "PDF missing"
+                      : d.passages
+                        ? "Search ready"
+                        : d.processing_state === "needs_attention"
+                          ? "Needs attention"
+                          : "Preparing"}
                   </span>
                   <ChevronRight size={15} />
                 </button>
@@ -546,21 +758,10 @@ function App() {
           {view === "Settings" && (
             <section className="page">
               <div className="eyebrow">WORKSPACE PREFERENCES</div>
-              <h1>Local by default.</h1><Readiness advanced/>
-              <p className="intro">
-                No source text leaves this laptop through the workspace.
-              </p>
-              <div className="settings-card">
-                <ShieldCheck />
-                <div>
-                  <h3>AI processing is off</h3>
-                  <p>
-                    Gemini, OpenAI, Claude and DeepSeek adapters and Windows
-                    Credential Manager integration are planned for M3. No API
-                    credentials are collected by this build.
-                  </p>
-                </div>
-              </div>
+              <h1>Local by default.</h1>
+              <Readiness advanced />
+              <AISettings config={ai} onChange={setAI} />
+              <OrganisationHistory />
               <div className="settings-card">
                 <Library />
                 <div>
@@ -568,7 +769,9 @@ function App() {
                   <p>
                     Configure LAB_DATABASE and LAB_PDF_FOLDER before starting
                     the backend. Search uses SQLite FTS5 and suppresses similar
-                    passages. Existing embeddings are preserved in the original index. Smart Library prepares hybrid search automatically in a separate local database.
+                    passages. Existing embeddings are preserved in the original
+                    index. Smart Library prepares hybrid search automatically in
+                    a separate local database.
                   </p>
                 </div>
               </div>
@@ -603,9 +806,36 @@ function App() {
               />
               <div className="composer-bottom">
                 <span>
-                  <ShieldCheck size={14} /> Retrieval only{" "}
+                  <button
+                    type="button"
+                    aria-label="Toggle AI"
+                    onClick={async () => {
+                      try {
+                        setAI(
+                          await send<AIConfig>(
+                            "/api/ai/settings",
+                            { ...ai, enabled: !ai.enabled },
+                            "PUT",
+                          ),
+                        );
+                      } catch (e) {
+                        setError((e as Error).message);
+                        setView("Settings");
+                      }
+                    }}
+                  >
+                    <ShieldCheck size={14} />{" "}
+                    {ai.enabled ? `AI On · ${ai.provider}` : "Retrieval Only"}
+                  </button>{" "}
                   <span className="divider">|</span> Automatic search
                 </span>
+                <button
+                  type="button"
+                  title="Choose provider and model"
+                  onClick={() => setView("Settings")}
+                >
+                  {ai.model || "Choose AI model"}
+                </button>
                 <label>
                   Sources{" "}
                   <select
@@ -666,11 +896,27 @@ function App() {
                     pages
                   </p>
                   <div className="provenance">{detail.metadata_provenance}</div>
+                  <p className="muted">
+                    {detail.bibliography?.journal || "Journal unavailable"} ·{" "}
+                    {detail.bibliography?.year || "Year unavailable"}
+                  </p>
+                  <p className="muted">
+                    DOI: {detail.bibliography?.doi || "Unavailable"}
+                  </p>
+                  <p className="muted">
+                    {detail.bibliography?.categories?.join(" · ")}
+                  </p>
                   <h4>Abstract</h4>
                   <p className="muted">
                     {detail.abstract ||
                       "Unavailable. No validated abstract has been extracted."}
                   </p>
+                  {detail.bibliography?.text_origin === "ocr" && (
+                    <p className="error">
+                      OCR-extracted text: verify numbers, units and equations
+                      against the original page.
+                    </p>
+                  )}
                   <h4>
                     Supporting passage <span>p. {selected.page}</span>
                   </h4>
@@ -751,7 +997,9 @@ function App() {
                 <span>
                   Your papers stay on this device.
                   <br />
-                  Cloud AI is disabled.
+                  {ai.enabled
+                    ? `Selected excerpts go to ${ai.provider}.`
+                    : "Cloud AI is disabled."}
                 </span>
               </div>
             </div>

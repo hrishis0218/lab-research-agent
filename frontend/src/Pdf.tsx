@@ -12,6 +12,7 @@ export default function Pdf({
   initialPage: number;
   pages: number;
 }) {
+  const [total, setTotal] = useState(pages);
   const [page, setPage] = useState(initialPage);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,7 @@ export default function Pdf({
     setError("");
     task.promise
       .then(async (pdf) => {
+        if (!dead) setTotal(pdf.numPages);
         const sheet = await pdf.getPage(
           Math.max(1, Math.min(page, pdf.numPages)),
         );
@@ -69,11 +71,11 @@ export default function Pdf({
           <ChevronLeft size={16} />
         </button>
         <span>
-          Page {page} of {pages}
+          Page {page} of {total || "…"}
         </span>
         <button
           aria-label="Next PDF page"
-          disabled={page >= pages}
+          disabled={!total || page >= total}
           onClick={() => setPage(page + 1)}
         >
           <ChevronRight size={16} />

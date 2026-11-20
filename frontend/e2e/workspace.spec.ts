@@ -7,11 +7,21 @@ for (const size of [
     await page.setViewportSize(size);
     const errors: string[] = [];
     const outbound: string[] = [];
-    page.on("request", request => {
-      if (/^https?:/.test(request.url()) && !request.url().startsWith("http://127.0.0.1:8001/")) outbound.push(request.url());
+    page.on("request", (request) => {
+      if (
+        /^https?:/.test(request.url()) &&
+        !request.url().startsWith("http://127.0.0.1:8001/")
+      )
+        outbound.push(request.url());
     });
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("/");
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/history")),
+      page.goto("/"),
+    ]);
+    await page
+      .getByRole("button", { name: "New research", exact: true })
+      .click();
     await expect(
       page.getByRole("heading", { name: /Good research starts/ }),
     ).toBeVisible();
@@ -23,7 +33,8 @@ for (const size of [
       .getByRole("textbox", { name: "Search library" })
       .fill("annealing");
     await page
-      .getByRole("button", { name: /Synthetic annealing study.*Indexed/ })
+      .getByRole("button", { name: /Synthetic annealing study.*Search ready/ })
+      .first()
       .click();
     await expect(page.getByText("Authors unavailable")).toHaveCount(0);
     await expect(
@@ -106,8 +117,12 @@ test("mobile reference overlay and API failure", async ({ page }) => {
   await page
     .getByRole("textbox", { name: "Research question" })
     .fill("annealing");
-  await page.route("**/api/search?**", (route) =>
-    route.fulfill({ status: 503, body: "Unavailable" }),
+  await page.route("**/api/ask", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "503 Unavailable" }),
+    }),
   );
   await page.getByRole("button", { name: "Search papers" }).click();
   await expect(page.getByRole("alert")).toContainText("503");
@@ -119,4 +134,87 @@ test("mobile reference overlay and API failure", async ({ page }) => {
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBeTruthy();
+});
+
+test("saved credentials, model selection and grounded cloud answer UI", async ({
+  page,
+  request,
+}) => {
+  let config = {
+    enabled: false,
+    consent: false,
+    provider: "Gemini",
+    model: "",
+    credentials: { Gemini: false, OpenAI: false },
+    cost: "Unknown",
+  };
+  await page.route("**/api/ai/settings", async (route) => {
+    if (route.request().method() === "PUT")
+      config = { ...config, ...route.request().postDataJSON() };
+    await route.fulfill({ json: config });
+  });
+  await page.route("**/api/ai/credentials", async (route) => {
+    expect(route.request().postDataJSON().secret).toBe(
+      "dummy-key-for-isolated-test",
+    );
+    config.credentials.Gemini = true;
+    await route.fulfill({ json: { saved: true } });
+  });
+  await page.route("**/api/ai/models?**", (route) =>
+    route.fulfill({ json: ["fixture-model"] }),
+  );
+  const found = await request.get("/api/search?q=annealing&limit=3");
+  const sources = (await found.json()).sources;
+  await page.route("**/api/ask", (route) =>
+    route.fulfill({
+      json: {
+        question: "Explain annealing",
+        sources,
+        answer: "The indexed example discusses annealing [S1].",
+        notice: "Mocked provider; not real scientific evidence",
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "API key", exact: true })
+    .fill("dummy-key-for-isolated-test");
+  await page.getByRole("button", { name: "Save / replace key" }).click();
+  await expect(
+    page.getByText("A key is saved in Windows Credential Manager."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "API key", exact: true }),
+  ).toHaveValue("");
+  await page
+    .getByRole("button", { name: "Load available provider models" })
+    .click();
+  await page
+    .getByRole("combobox", { name: "AI model", exact: true })
+    .selectOption("fixture-model");
+  await page
+    .getByRole("checkbox", { name: "Cloud consent", exact: true })
+    .check();
+  await page.getByRole("button", { name: "Save AI preferences" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "AI model", exact: true }),
+  ).toHaveValue("fixture-model");
+  await page.getByRole("button", { name: "New research", exact: true }).click();
+  await page.getByRole("button", { name: "Toggle AI", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Toggle AI", exact: true }),
+  ).toContainText("AI On");
+  await page
+    .getByRole("textbox", { name: "Research question" })
+    .fill("Explain annealing");
+  await page.getByRole("textbox", { name: "Research question" }).press("Enter");
+  await page.getByRole("button", { name: "[S1]", exact: true }).click();
+  await expect(page.locator("blockquote")).toContainText("SYNTHETIC DEMO");
+  await page.screenshot({
+    path: "test-results/ai-settings-and-answer.png",
+    fullPage: true,
+  });
 });
