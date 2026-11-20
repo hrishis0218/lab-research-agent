@@ -1,20 +1,18 @@
-# React workspace development
+# React workspace development and operation
 
-The v1 workspace runs entirely on localhost. It opens the existing Phase 2 index in SQLite read-only mode; it does not index, migrate, re-embed or rename anything. The Streamlit application and old branches remain available.
+The application is a local React/TypeScript workspace served by FastAPI on Windows. The normal flow is **add PDFs -> ask questions -> inspect answers/evidence and original pages**. Folder monitoring, bibliographic lookup, safe organisation, OCR when necessary and indexing run automatically.
 
-## Start on Windows
+## Start
 
-Prerequisites: Node.js 22+ (Vite 7 requires 22.12+), npm, and the existing Conda `labagent` environment.
-
-From the repository root:
+Prerequisites: Node.js 22.12+ and the Conda `labagent` environment. From the repository root:
 
 ```powershell
 .\scripts\dev.ps1
 ```
 
-This installs minimal API dependencies, runs `npm ci`, builds React, then serves both UI and API at **http://127.0.0.1:8000**. Later starts may use `-SkipInstall`. Ctrl+C stops the server. Do not expose the server on a public interface.
+Open **http://127.0.0.1:8000**. Later launches can use `-SkipInstall`. Ctrl+C stops the application and its worker. Only one process may own a Smart Library database. Bind to localhost; this build is not an authenticated multi-user server.
 
-Defaults: `data/library.sqlite3` and `$HOME\Desktop\all pdf papers`. To select alternatives before starting:
+Defaults are `data/library.sqlite3` and `$HOME\Desktop\all pdf papers`. Optional startup overrides:
 
 ```powershell
 $env:LAB_DATABASE = 'D:\research\library.sqlite3'
@@ -22,9 +20,31 @@ $env:LAB_PDF_FOLDER = 'D:\research\papers'
 .\scripts\dev.ps1 -SkipInstall
 ```
 
-For frontend hot reload, run the backend on port 8000 and `npm run dev --prefix frontend` in a second terminal; Vite proxies `/api` locally. Production serves the Vite build directly from FastAPI.
+`LAB_SMART_DATABASE` and `LAB_WORKSPACE_DATABASE` optionally select sidecar and chat/preferences storage. Keep private stores outside Git. The original library is read-only; sidecars contain current identities, paths, jobs, vectors, metadata and move journals. Do not run two workers against the same sidecar. Metadata requests send bibliographic identifiers/titles, not PDF files. Local BGE and OCR language assets may download on first use; document text is processed locally.
 
-## Demo and tests
+## Ordinary use
+
+Add PDFs to any subfolder of the configured library, or drag them onto the Library import area. Imports never overwrite an existing name. Originals' bytes remain unchanged during organisation. Search ready papers while new ones are preparing; duplicates are grouped as attachments, and unreadable/provisional metadata is reported rather than fabricated.
+
+Select a citation to inspect bibliography, abstract, exact excerpt and PDF page. OCR passages carry a visual-check warning. Evidence exports include bibliography, extraction origin and permanent PDF page links. Research turns and source snapshots persist locally.
+
+## Optional cloud answering
+
+Cloud processing is **off by default and currently remains off at the user's request**. Retrieval Only requires no key. To opt in later, Settings supports:
+
+1. Gemini or OpenAI selection; save/replace/forget an API key in Windows Credential Manager. Keys never return in API responses or enter SQLite/browser persistence.
+2. Load the provider's actual model catalogue and select a model. Access/capability and quota errors are reported without losing the question; there is no automatic paid fallback.
+3. Explicit consent to send the question/selected excerpts and accept possible provider charges, then save preferences. AI On in the composer persists the selected policy. Pricing/quota are unknown unless reported by the provider.
+
+No full PDFs are uploaded. OpenAI responses request `store=false`; provider handling remains subject to their terms. Citation and quotation matching checks source provenance, not independent scientific truth. No live provider test has been performed for this delivery; mock tests are labelled as such.
+
+## Organisation and recovery
+
+Settings lists old/new names and journal status. Undo restores the previous location if its content/hash and destination are safe. Restore original file locations walks the journal backwards; conflicts are reported and never overwritten. Rollback places that content on hold so the worker does not immediately rename it again. Resume organising releases the hold explicitly. No source deletion is performed. Uncertain metadata goes to Needs_Review with a provisional name.
+
+The original Streamlit source/database and all original embeddings remain recoverable. Integrity-checked pre-change database snapshots are in `data/recovery`. Restore file paths through the journal when using the original database; do not reset/rebuild the index. Unavailable historical citations are retained and clearly reported.
+
+## Development and tests
 
 ```powershell
 conda run -n labagent python -m unittest discover -s tests
@@ -33,23 +53,6 @@ npx --prefix frontend playwright install chromium
 npm run test:e2e --prefix frontend
 ```
 
-Playwright starts an isolated synthetic server on port 8001 with `scripts/serve_demo.py`. Its PDFs are explicitly marked synthetic and stored only in ignored `data/demo`; the live index is never used by browser tests. Stop any unrelated server on port 8001 before testing. Screenshots are in ignored `frontend/test-results`.
+Playwright starts a completely synthetic, isolated demo at port 8001. The demo disables external metadata/model downloads and uses keyword retrieval; provider UI requests are mocked. No API keys or actual research corpus are required for tests. Run `python -m scripts.serve_demo` inside `labagent` for a colleague demo. Test screenshots are ignored under `frontend/test-results`.
 
-For a colleague demonstration without private research: `conda run --no-capture-output -n labagent python -m scripts.serve_demo`, then visit port 8001. Search **annealing**, select S1, read its exact excerpt, open PDF, advance to page 2, toggle themes/panels, then export the session from Evidence.
-
-## Implemented milestone
-
-- React/TypeScript three-pane responsive shell with light/dark themes and keyboard composer.
-- Live library search/filter, separate filesystem/index/unindexed/missing counts.
-- Read-only FTS5 retrieval with configurable passage limit, max two passages per document and near-identical passage suppression. This is keyword retrieval, not hybrid search or independent support verification.
-- Citation-specific metadata/quoted passage, PDF.js page rendering/navigation and original PDF link; viewer code loads only on demand.
-- Local evidence CSV export with spreadsheet formula escaping.
-- Typed API contracts; PDFs are served by document ID only and constrained to the configured root, including resolved symlinks.
-
-## Limitations and next work
-
-M2–M5 remain open. Indexing jobs, audited duplicate groups, semantic retrieval, secure provider configuration, model-generated scientific answers, persistent conversations, collections, validated metadata, rename/rollback and claim/experiment comparison tools are not delivered in this milestone. The UI labels these limits; no inactive provider controls collect keys. Session conversations disappear on reload; theme persists locally. Abstracts are explicitly unavailable until extraction is validated. Indexed titles/authors may be unvalidated PDF metadata.
-
-Missing indexed paths must be reconciled through a reviewed identity/path plan before migration. Do not assume that the difference between indexed count and on-disk count equals unindexed files. Stats use resolved, case-normalised paths; they do not identify byte duplicates. Missing DB returns empty states; an incompatible existing schema returns an API error and requires diagnosis, never automatic recreation.
-
-The PDF canvas currently provides page navigation, rather than selectable text, in-PDF search or passage highlights. No measured retrieval-quality claim is made: hand-labelled questions and a performance study are required before release. Browser fixtures verify plumbing only. Existing dependency deprecation warnings for legacy `fitz` and Starlette/httpx remain; Phase 2 code has not been modified.
+For hot reload, run FastAPI on 8000 and `npm run dev --prefix frontend` separately; Vite proxies `/api`. See [implementation/acceptance results](V1_IMPLEMENTATION_PLAN.md). Provisional metadata, scientific entailment validation, richer version identity, collections and a full release-quality retrieval benchmark remain open work. Monitoring requires the app running; a Windows-service installer is not included.

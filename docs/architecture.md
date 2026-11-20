@@ -1,55 +1,52 @@
-# Lab Research Agent v1.0 architecture
+# Lab Research Agent v1 architecture
 
-## Goals
+## Local workspace
 
-A local-first scientific literature workspace for PDF ingestion, verified document metadata, hybrid retrieval, cited answers, evidence evaluation, comparison tables, and safe document organisation.
+React 19/TypeScript/Vite is served by FastAPI on localhost:8000. Library intake starts with the application, without indexing/audit/enrichment buttons. Original Streamlit code and the legacy database remain recoverable. The active branch is `codex/react-workspace`; main is not merged.
 
-## Components
-
-- **Frontend (M1):** React 19, TypeScript and Vite with independently collapsible navigation/reference panes, local keyword research, library browsing, evidence export, themes and a lazy-loaded PDF.js viewer.
-- **Backend (M1):** FastAPI on 127.0.0.1:8000 serves the production UI plus typed health, library statistics, document detail/PDF and keyword search endpoints. Library service connections use SQLite URI `mode=ro` and `query_only`; this avoids the legacy retrieval entry point that creates schema during searches.
-- **Documents (planned):** layout-aware PDF parsing; metadata and DOI identification; SHA-256 duplicate detection; proposed renames with preview, confirmation, journal, and rollback.
-- **Retrieval (existing):** retain `retrieval.py`, local SQLite FTS5, and BGE-small embeddings while evolving into independently tested services.
-- **Evidence (existing/proposed):** preserve `evidence.py`; build claim-to-source evidence tables with verified quotations and appropriate uncertainty.
-- **AI providers (existing/proposed):** preserve Gemini and OpenAI; add a provider adapter and secure, OS-managed credential storage before extending to Anthropic or DeepSeek.
-- **Storage:** leave `data/library.sqlite3` and all PDF files outside Git. No schema migration in this milestone.
-
-## Safety and migration rules
-
-1. `main` remains the working Streamlit Phase 2.4 application; v1 work lives on `feature/v1-architecture`.
-2. Do not overwrite the SQLite database or existing vector embeddings.
-3. Never commit research PDFs, credential files, databases, or backups.
-4. Do not rename or move any original PDF without preview and explicit approval. Preserve an undoable audit trail.
-5. Keep provider/cloud requests opt-in; source text sent to cloud services needs laboratory approval.
-6. Test new API endpoints and document parsers against synthetic fixtures before processing the full library.
-
-## Local development
-
-```powershell
-conda activate labagent
-cd /d "C:\Users\petar\Desktop\Lab Research agent\lab-research-agent"
-python -m pip install -r requirements-v1.txt
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```mermaid
+flowchart LR
+  F[Folder / drag-and-drop] --> D[Discovery and SHA-256 identities]
+  D --> M[Bibliographic identification]
+  M --> O[Reversible organisation journal]
+  O --> T[Page text / local OCR]
+  T --> I[SQLite FTS5 / local BGE vectors]
+  I --> R[Hybrid retrieval and page provenance]
+  R --> U[React evidence / PDF pane]
+  R --> C[Explicit cloud consent gate]
+  V[Windows Credential Manager] --> C
+  C --> A[Gemini / OpenAI]
+  B[Legacy SQLite: read-only] --> S[Private sidecar and stable source IDs]
+  S --> D
+  S --> I
 ```
 
-Visit http://127.0.0.1:8000/api/health. Streamlit remains available separately at port 8501.
+## Services and storage
 
-## Document audit and DOI enrichment (v1 development)
+- `backend/library.py`: read-only Phase 2 adapter and original index access.
+- `backend/smart_library.py`: automatic discovery, durable jobs, lifecycle phases, incremental extraction/embeddings, source resolution and reconciliation. Newer discoveries are prioritised; metadata batches are bounded, and ready sources remain available.
+- `backend/identification.py`: multiline/first-page metadata, reference-excluding DOI candidates, cached Crossref title/DOI lookup, OpenAlex fallback, field provenance and conservative confidence. Ambiguous identities remain provisional. PyMuPDF access is serialised across metadata threads.
+- `backend/organiser.py`: configured-root boundaries, Windows no-replace moves, collision suffixes, journal recovery, undo/restore-all and explicit resume after rollback.
+- `backend/ocr.py`: local image-only-page OCR; language assets download independently of confidential content. The original PDF is never rewritten. OCR-derived values are explicitly uncertain.
+- `backend/cloud.py`: persistent policy/model preferences and turn/source snapshots, dynamic model discovery, provider adapters and citation/quotation checks. `backend/credentials.py` alone accesses Windows Credential Manager; secrets never enter API responses, logs or SQLite.
+- Original `data/library.sqlite3`: remains unchanged, with all original vectors preserved. A consistent SQLite backup seeds `library.sqlite3.smart.sqlite3`; sidecar migrations affect only the copy. `.workspace.sqlite3` stores consent/preferences/history. All private stores, models, PDFs and recovery snapshots are ignored by Git.
 
-The following tools are separate from the Streamlit PDF index and **do not modify any PDF or SQLite database**.
+## Safety and recovery
 
-1. `python -m scripts.audit_pdfs "C:\\Users\\petar\\Desktop\\all pdf papers" --output data/pdf_audit.csv`
-2. `python -m scripts.enrich_crossref --input data/pdf_audit.csv --output data/pdf_enriched.csv --limit 25`
-3. Review `data/pdf_enriched.csv` using Excel or pandas; `crossref_status` explains whether a DOI was missing, its title matched, a title mismatch needs investigation, or lookup failed.
-4. Run the enrichment command again with `--limit 100` to extend coverage. Successful responses are cached in `data/crossref_cache.json`; cached DOIs aren't requested again. The output CSV is regenerated from the original audit on each run.
-5. Optionally pass `--email your-address@example.com` for the Crossref polite pool. This sends only the DOI and an optional contact email to Crossref, not PDF content.
+A single-worker Windows lock is acquired before sidecar initialisation/recovery. Each move commits a planned operation before the filesystem rename, verifies the content fingerprint afterwards, then binds attachment paths and completes the journal in one SQLite transaction. Startup reconciles unfinished operations conservatively. Ambiguous or conflicting states require attention; no destination is overwritten and no original is deleted.
 
-Crossref gives authoritative metadata for *its own DOI records* but a DOI extracted from a PDF may belong to a bibliography item. **All results require review before any rename**; `title_match_review` is not an automatic approval. Proposed names are not executed, and collisions are not yet resolved.
+Rollback similarly journals its intent, checks source and destination, restores the previous location and puts the content on organisation hold. Source links resolve via permanent document IDs and current attachments, including the filesystem/SQLite commit window. Changed bytes get a new identity; historical excerpts never silently point to replacement content.
 
-## React workspace delivery
+Old source IDs are rebound only when every indexed passage occurs on the candidate's matching page. Unproven/rejected mappings cannot serve a potentially incorrect PDF; original records/vectors and rejection history are retained. Unchanged legacy content can reuse the old identity and vectors rather than being re-embedded.
 
-See [React development](REACT_DEVELOPMENT.md) for the Windows launcher, isolated demo and tests, and [implementation plan](V1_IMPLEMENTATION_PLAN.md) for current acceptance results. No migration has been applied to the existing index. Search uses near-identical passage suppression; document identity and exact-file duplicate groups remain M2 work.
+The user's standing approval covers normal reversible organisation inside the configured root. Per-file confirmation is not required. This does not authorise deletion, overwriting, destructive index resets or unapproved provider processing.
 
-## Next document-intelligence milestone
+## Cloud boundary and scientific reliability
 
-Review the Crossref match statistics, improve ambiguous first-page title extraction, then design an explicit preview/confirm/rollback workflow for renaming without breaking the existing index.
+The default and current policy is cloud off. Provider model IDs come from the configured account, rather than an invented static catalogue. AI On requires persistent excerpt-processing/possible-charge consent and a saved OS-vault credential. Only the question and bounded selected excerpts/bibliography are sent; full PDFs and local paths are not uploaded. OpenAI requests disable response storage. Provider errors preserve input; there is no automatic provider/cost fallback.
+
+Generated answers must use known citation IDs and quotes matching their supplied source excerpts. These are provenance/string checks, **not independent entailment verification**. Experimental conditions and uncertainty remain essential; OCR may misread equations or numbers. Missing metadata stays unavailable, and provisional bibliographic matches are not represented as human-verified truth.
+
+## Validation and remaining work
+
+See [implementation plan](V1_IMPLEMENTATION_PLAN.md) for actual-corpus integrity and test results, and [development/operation](REACT_DEVELOPMENT.md) for launch, demo and recovery. The isolated browser demo uses synthetic PDFs, offline metadata/keyword retrieval and mocked provider UI calls. Live Gemini/OpenAI answering is deliberately unverified because the user requested keeping cloud processing off. Full scientific retrieval evaluation, richer publication/version identities, collections and independent claim review remain release work.

@@ -52,4 +52,4 @@ Claim-level citation validation, OCR, figure/table extraction, Zotero metadata, 
 
 ## v1 React workspace (development)
 
-A new local React + TypeScript workspace is available on `codex/react-workspace`, backed by a read-only FastAPI adapter to the existing passage index. Run `.\scripts\dev.ps1` from PowerShell and open http://127.0.0.1:8000. See [development and demo instructions](docs/REACT_DEVELOPMENT.md) and the [milestone plan](docs/V1_IMPLEMENTATION_PLAN.md). Phase 2.4 Streamlit remains the fallback; v1 is not a complete release yet.
+The local React + TypeScript/FastAPI workspace on `codex/react-workspace` automatically discovers PDFs, identifies metadata, organises files reversibly and prepares hybrid search in the background. Run `.\scripts\dev.ps1` and open http://127.0.0.1:8000. Gemini/OpenAI controls use Windows Credential Manager and explicit cloud consent; cloud remains off at the user's request. See [operation and development](docs/REACT_DEVELOPMENT.md) and [actual acceptance results](docs/V1_IMPLEMENTATION_PLAN.md). Original PDFs' bytes, the legacy index and all original embeddings are preserved; the full v1 release is not yet complete.
