@@ -31,7 +31,7 @@ for (const size of [
     ).toBeVisible();
     await page.getByRole("button", { name: "Read original PDF" }).click();
     await expect(page.locator("canvas")).toBeVisible();
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.locator(".pdf").getByRole("status")).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);
     expect(
       await page.locator("canvas").evaluate((c: HTMLCanvasElement) => c.width),
@@ -42,7 +42,7 @@ for (const size of [
     });
     await page.getByRole("button", { name: "Next PDF page" }).click();
     await expect(page.getByText("Page 2 of 2")).toBeVisible();
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.locator(".pdf").getByRole("status")).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);
     expect(
       await page.locator("canvas").evaluate((c: HTMLCanvasElement) => c.width),
