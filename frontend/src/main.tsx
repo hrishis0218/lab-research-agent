@@ -404,7 +404,7 @@ function App() {
                     ? "Library configuration needed"
                     : "Connecting to library..."}
               </span>
-              <strong>{stats?.indexed ?? "—"} indexed records</strong>
+              <strong>{stats?.indexed ?? "—"} search-ready files</strong>
               <small>
                 {stats?.on_disk ?? "—"} on disk · {stats?.unindexed ?? "—"}{" "}
                 unindexed
@@ -418,7 +418,7 @@ function App() {
                   }}
                 />
               </div>
-              <small>Original PDFs unchanged</small>
+              <small>Original content preserved</small>
             </div>
           )}
           <button title="Settings" onClick={() => setView("Settings")}>
@@ -514,7 +514,7 @@ function App() {
                       <strong>Your literature, connected.</strong>
                       <p>
                         {stats
-                          ? `${stats.indexed} indexed records · ${stats.passages.toLocaleString()} searchable passages`
+                          ? `${stats.indexed} search-ready files · ${stats.passages.toLocaleString()} searchable passages`
                           : "Connecting to your local library…"}
                       </p>
                     </div>
@@ -566,7 +566,7 @@ function App() {
                         <span>{turn.sources.length} passages</span>
                       </div>
                       <p className="muted">
-                        Keyword retrieval · exact indexed excerpts. These
+                        Retrieved page excerpts. These
                         passages have not been assessed for support of a
                         scientific claim.
                       </p>
@@ -674,7 +674,7 @@ function App() {
                 />
               </label>
               <div className="list-label">
-                {filtered.length} PAPERS <span>Title / extracted pages</span>
+                {filtered.length} {filtered.length === 1 ? "PAPER" : "PAPERS"} <span>Title / extracted pages</span>
               </div>
               {filtered.map((d) => (
                 <button
