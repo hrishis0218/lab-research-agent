@@ -14,7 +14,7 @@ Ship a cohesive, maintainable React + TypeScript frontend backed by FastAPI for 
 6. Summarise changes, screenshots (when available), automated test results, and remaining issues concisely after milestones. Prefer a reviewable PR.
 
 ## Protect the lab's data
-- Treat the real PDFs at `%USERPROFILE%\Desktop\all pdf papers` as **read-only** unless the user explicitly approves a particular rename/move/delete operation.
+- The user has explicitly authorised automatic, reversible PDF **renaming and organisation** within the configured library, without per-file confirmation. Follow `docs/AUTONOMOUS_LIBRARY_MILESTONE.md`: no overwriting/deleting originals, no unchecked collisions, journal every move and preserve citations.
 - Existing PDF/embedding index is under `data/`; never clear/rebuild/overwrite it without a verified backup and explicit approval for data migration.
 - Keep PDFs, database files, local embedding caches, and API keys out of Git. GitHub repository visibility is public. Scan staged changes before commits.
 - Do not send unpublished/confidential research text to any external API without permission. Provider/model selection must visibly show cloud processing.
@@ -32,4 +32,4 @@ Ship a cohesive, maintainable React + TypeScript frontend backed by FastAPI for 
 ## Delegated development objective
 Deliver the complete v1 workspace described in `docs/V1_PRODUCT_SPEC.md` through **cohesive, testable milestones**. Start by creating `docs/V1_IMPLEMENTATION_PLAN.md`, then implement M0 and M1 (React/Vite/TypeScript shell + FastAPI API + real PDF pane); after validating those, proceed with M2–M5 as time/resources/access permit without requiring a new user prompt for each ordinary change. Run and visually inspect the browser UI; keep old Streamlit and the existing database untouched. Do not report the overall v1 complete until the acceptance criteria pass. At major checkpoints, report functionality, tests, problems and approvals needed.
 
-Ask before destructive Git operations, PDF renames, data migration or enabling paid/cloud processing. For routine coding and test fixes, proceed independently.
+Prioritise `docs/AUTONOMOUS_LIBRARY_MILESTONE.md` as the next development milestone. Automatic safe PDF renaming/organisation is now authorised without per-file approval. Ask before destructive Git operations, irreversible deletion, destructive data migration or enabling paid/cloud processing. For ordinary coding, metadata lookup, background processing and reversible filename organisation, proceed independently.

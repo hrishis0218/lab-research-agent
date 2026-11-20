@@ -236,7 +236,7 @@ def _query_bonus(question: str, title: str, content: str) -> float:
 
 
 def retrieve(question: str, db: sqlite3.Connection, limit=8, semantic=True,
-             candidates=60, max_per_document=2) -> list[dict]:
+             candidates=60, max_per_document=2, query_model=None) -> list[dict]:
     """Hybrid RRF retrieval with domain-aware re-ranking and duplicate suppression.
 
     Re-uses the exact Phase 2 schema and embedding model. 'score' is a ranking
@@ -257,7 +257,7 @@ def retrieve(question: str, db: sqlite3.Connection, limit=8, semantic=True,
     for rank, row in enumerate(rows, 1):
         fused[row[0]] = fused.get(row[0], 0.0) + 1.0 / (60 + rank)
     if semantic:
-        query_vec = np.asarray(next(iter(embedding_model().query_embed(question))), dtype=np.float32)
+        query_vec = np.asarray(next(iter((query_model or embedding_model()).query_embed(question))), dtype=np.float32)
         query_norm = max(float(np.linalg.norm(query_vec)), 1e-9)
         # Keep only the top vectors; do not build an unbounded list of every embedding.
         best = []

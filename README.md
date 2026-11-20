@@ -49,3 +49,7 @@ Tests exercise indexing and retrieval without downloading a model or using OpenA
 ## Next
 
 Claim-level citation validation, OCR, figure/table extraction, Zotero metadata, scalable vector search, document permissions and lab deployment.
+
+## v1 React workspace (development)
+
+The local React + TypeScript/FastAPI workspace on `codex/react-workspace` automatically discovers PDFs, identifies metadata, organises files reversibly and prepares hybrid search in the background. Run `.\scripts\dev.ps1` and open http://127.0.0.1:8000. Gemini/OpenAI controls use Windows Credential Manager and explicit cloud consent; cloud remains off at the user's request. See [operation and development](docs/REACT_DEVELOPMENT.md) and [actual acceptance results](docs/V1_IMPLEMENTATION_PLAN.md). Original PDFs' bytes, the legacy index and all original embeddings are preserved; the full v1 release is not yet complete.

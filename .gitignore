@@ -34,3 +34,10 @@ updates/
 # Temporary files
 *.log
 *.tmp
+
+# React build and browser test artifacts
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo

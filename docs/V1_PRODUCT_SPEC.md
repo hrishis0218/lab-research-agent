@@ -33,7 +33,7 @@ The current working Streamlit Phase 2.4 app is a *reference implementation and f
 - PDF extraction: evaluate layout-aware blocks, reading order, columns, hyphenation and Unicode; retain original source text + cleaned text and page anchors. Do **not** silently “fix” scientific equations or numbers; visibly flag uncertain OCR/text.
 - Extract title, authors, year, journal, DOI, abstract, keywords when available. Prefer validated DOI/Crossref metadata; distinguish source provenance and confidence; flag incomplete/malformed titles. Recognise books, preprints and theses.
 - Detect exact duplicates by SHA-256 and bibliographic duplicates by verified DOI/title and provenance; multiple PDF versions of the same paper must not count as independent evidence.
-- **Rename manager**: preview old/new filename, metadata, confidence, collisions and affected index paths; require explicit approval before any rename/move/delete; prevent overwrites; journal changes and support rollback; update index paths consistently. Never rename source PDFs as a side effect of indexing or importing.
+- **Autonomous library organiser**: user authorises safe automatic PDF renaming/moving within the configured library without per-file approval. Use validated metadata, stable identities, collision prevention, automatic path/citation updates, journal and rollback. Expose optional previews and history. Never overwrite or delete originals; uncertain identity goes to Needs Review. See `docs/AUTONOMOUS_LIBRARY_MILESTONE.md`.
 - Keep original PDFs local. Clearly disclose when selected text is sent to an external model or metadata service.
 
 ### Search and RAG
@@ -93,7 +93,7 @@ The current working Streamlit Phase 2.4 app is a *reference implementation and f
 
 ### M4: Document intelligence
 - Improve title/abstract extraction, DOI/Crossref metadata, duplicate grouping, document identities, read-only rename preview.
-- With explicit approval, add journaled rename/rollback and consistent index path updates; test collisions, copies, cross-folder files and Windows locking.
+- Add **automatic** journaled rename/organisation/rollback with consistent index path updates; user has pre-authorised safe file renaming without per-file dialogs. Test collisions, copies, cross-folder files and Windows locking. No deletion or overwrites.
 
 ### M5: Evidence tools and release validation
 - Evidence matrix, support categorisation, verified quote/page links, experiment comparison and export.
@@ -104,7 +104,7 @@ Within each milestone, implement multiple cohesive features, run tests, review U
 
 ## 5. Non-negotiable safeguards
 
-- NO modification, deletion, rename or relocation of `%USERPROFILE%\Desktop\all pdf papers` without explicit per-operation approval.
+- The user has explicitly authorised **automatic reversible renaming and organisation** of PDFs within the configured library. No per-file approval needed. This does not authorise file deletion, overwriting, irrecoverable changes, or changes outside the configured library. Keep a rename journal and one-click undo.
 - NO overwriting, deleting or silently migrating existing `data/library.sqlite3` or embeddings; use backup and migration tests.
 - NO committing PDFs, databases, API keys or private lab files to GitHub (repository is currently public).
 - NO unapproved outbound upload of unpublished/internal source text to any cloud LLM. Crossref requests should involve DOI metadata only.
@@ -120,7 +120,7 @@ Within each milestone, implement multiple cohesive features, run tests, review U
 - User can choose number of passages, run keyword/semantic/hybrid search, and see duplicate-suppressed source references with page links.
 - API key saved once survives Streamlit/React reload and system restart; no plaintext key in repo/log/frontend.
 - Search and document browsing work when cloud AI is disabled.
-- New UI offers metadata/abstract with confidence, duplicate groups, rename previews, and never mutates source PDFs without approval.
+- New UI displays metadata/abstract with provenance, duplicate groups, automatic file organisation and reversible rename history; never deletes/overwrites PDFs.
 - Tests include Windows-safe SQLite cleanup; all major endpoints, UI workflows and identity/rename logic have automatic regression coverage.
 - Original Phase 2.4 remains recoverable and old database intact.
 - Provide a colleague-ready demo with sample queries, honest limitations, and a clear changelog.
