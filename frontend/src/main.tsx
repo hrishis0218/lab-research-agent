@@ -61,6 +61,13 @@ async function api<T>(url: string, signal?: AbortSignal): Promise<T> {
     );
   return response.json();
 }
+function Readiness({advanced=false}: {advanced?:boolean}) {
+  const [status,setStatus]=useState<{states:Record<string,number>; semantic_available:boolean; failures:unknown[]; scan_error?:string}>();
+  useEffect(()=>{ let alive=true; const refresh=()=>api<typeof status>("/api/library/readiness").then(s=>{if(alive)setStatus(s)}).catch(()=>{}); void refresh(); const timer=setInterval(refresh,10000); return ()=>{alive=false;clearInterval(timer)} },[]);
+  if(!status)return <p className="muted">Connecting to Smart Library…</p>;
+  const active=(status.states.pending||0)+(status.states.running||0)+(status.states.retry||0);
+  return <div className="muted" role="status">{status.scan_error ? "Library folder temporarily unavailable" : active ? `Smart Library · preparing ${active} documents in the background` : "Smart Library · ready for questions"}{!!status.failures?.length && <span> · {status.failures.length} documents need attention; other sources remain searchable</span>}{advanced && <pre style={{whiteSpace:"pre-wrap"}}>{JSON.stringify(status,null,2)}</pre>}</div>;
+}
 function App() {
   const [left, setLeft] = useState(true);
   const [right, setRight] = useState(true);
@@ -103,6 +110,10 @@ function App() {
       });
     return () => abort.abort();
   }, []);
+  useEffect(() => {
+    const timer=setInterval(()=>{ Promise.all([api<Stats>("/api/library/stats"),api<Document[]>("/api/documents")]).then(([s,d])=>{setStats(s);setDocs(d)}).catch(()=>{}); },10000);
+    return ()=>clearInterval(timer);
+  },[]);
   useEffect(() => {
     if (!selected) return;
     const abort = new AbortController();
@@ -269,7 +280,7 @@ function App() {
                   }}
                 />
               </div>
-              <small>Read-only · no files changed</small>
+              <small>Original PDFs unchanged</small>
             </div>
           )}
           <button title="Settings" onClick={() => setView("Settings")}>
@@ -286,7 +297,7 @@ function App() {
           </button>
         </div>
       </aside>
-      <main>
+      <main><Readiness/>
         <header>
           <div className="breadcrumb">
             Workspace <span>/</span> <strong>{view}</strong>
@@ -450,8 +461,7 @@ function App() {
                 ))}
               </div>
               <p className="muted">
-                Exact duplicates: not scanned. Indexing and metadata enrichment
-                arrive in later milestones.
+                Smart Library detects exact copies and prepares new PDFs automatically.
               </p>
               <label className="library-search">
                 <Search size={17} />
@@ -536,7 +546,7 @@ function App() {
           {view === "Settings" && (
             <section className="page">
               <div className="eyebrow">WORKSPACE PREFERENCES</div>
-              <h1>Local by default.</h1>
+              <h1>Local by default.</h1><Readiness advanced/>
               <p className="intro">
                 No source text leaves this laptop through the workspace.
               </p>
@@ -558,8 +568,7 @@ function App() {
                   <p>
                     Configure LAB_DATABASE and LAB_PDF_FOLDER before starting
                     the backend. Search uses SQLite FTS5 and suppresses similar
-                    passages. Embeddings remain preserved; semantic retrieval is
-                    pending safe model loading.
+                    passages. Existing embeddings are preserved in the original index. Smart Library prepares hybrid search automatically in a separate local database.
                   </p>
                 </div>
               </div>
@@ -595,7 +604,7 @@ function App() {
               <div className="composer-bottom">
                 <span>
                   <ShieldCheck size={14} /> Retrieval only{" "}
-                  <span className="divider">|</span> Keyword search
+                  <span className="divider">|</span> Automatic search
                 </span>
                 <label>
                   Sources{" "}

@@ -26,6 +26,7 @@ class DocumentSummary(BaseModel):
 
 
 class DocumentDetail(DocumentSummary):
+    bibliography: dict | None = None
     page: int
     excerpt: str | None
     source_id: int | None
@@ -36,6 +37,7 @@ class DocumentDetail(DocumentSummary):
 
 
 class Source(BaseModel):
+    bibliography: dict | None = None
     source_id: int
     document_id: int
     title: str
