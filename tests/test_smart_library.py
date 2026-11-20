@@ -78,7 +78,7 @@ class SmartTests(unittest.TestCase):
             with pymupdf.open() as pdf:
                 pdf.new_page().insert_text((72,72),'Annealing background processing evidence.')
                 pdf.save(papers/'background.pdf')
-            with patch.dict(os.environ,{'LAB_SMART_DATABASE':str(root/'sidecar.db')}),patch('fastembed.TextEmbedding',return_value=Model()):
+            with patch.dict(os.environ,{'LAB_SMART_DATABASE':str(root/'sidecar.db'),'LAB_METADATA_OFFLINE':'1'}),patch('fastembed.TextEmbedding',return_value=Model()):
                 with TestClient(create_app(Library(root/'legacy.db',papers),automatic=True)) as client:
                     for _ in range(100):
                         status=client.get('/api/library/readiness').json()

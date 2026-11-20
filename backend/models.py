@@ -1,4 +1,5 @@
 """Typed public API contracts. Paths and secrets are intentionally absent."""
+
 from pydantic import BaseModel
 
 
@@ -17,6 +18,9 @@ class LibraryStats(BaseModel):
 
 
 class DocumentSummary(BaseModel):
+    bibliography: dict | None = None
+    processing_state: str | None = None
+    attachments: list[dict] = []
     id: int
     title: str
     filename: str
